@@ -125,7 +125,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
     def handle(self):
         self.remote = None
         try:
-            self.encryptor = encrypt.Encryptor(self.server.key, self.server.method)
+            self.encryptor = encrypt.Encryptor(self.server.key, self.server.method, servermode=True)
             sock = self.connection
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             iv_len = self.encryptor.iv_len()
@@ -133,7 +133,10 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             if iv_len > 0 and not data:
                 return
             if iv_len:
-                self.decrypt(data)
+                try:
+                    self.decrypt(data)
+                except ValueError:
+                    logging.warn('iv reused, possible replay attrack')
             data = sock.recv(1)
             if not data:
                 return
