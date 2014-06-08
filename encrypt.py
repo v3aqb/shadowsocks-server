@@ -69,7 +69,7 @@ def EVP_BytesToKey(password, key_len, iv_len):
     # so that we make the same key and iv as nodejs version
     m = []
     i = 0
-    while len(''.join(m)) < (key_len + iv_len):
+    while len(''.join(m)) < key_len:
         md5 = hashlib.md5()
         data = password
         if i > 0:
@@ -79,8 +79,7 @@ def EVP_BytesToKey(password, key_len, iv_len):
         i += 1
     ms = ''.join(m)
     key = ms[:key_len]
-    iv = ms[key_len:key_len + iv_len]
-    return (key, iv)
+    return key
 
 
 method_supported = {
@@ -130,9 +129,7 @@ class Encryptor(object):
         method = method.lower()
         m = self.get_cipher_len(method)
         if m:
-            key, iv_ = EVP_BytesToKey(password, m[0], m[1])
-            if iv is None:
-                iv = iv_[:m[1]]
+            key = EVP_BytesToKey(password, m[0], m[1])
             if op == 1:
                 self.cipher_iv = iv[:m[1]]  # this iv is for cipher, not decipher
             return Cipher(method.replace('-', '_'), key, iv, op, key_as_bytes=0, d='md5', salt=None, i=1, padding=1)
