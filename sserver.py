@@ -183,8 +183,9 @@ def main():
 
     config_path = None
     server = None
+
     if os.path.exists(os.path.join(os.path.dirname(__file__), 'config.json')):
-        config_path = config_path
+        config_path = os.path.join(os.path.dirname(__file__), 'config.json')
     try:
         optlist, args = getopt.getopt(sys.argv[1:], 'c:f:')
         for key, value in optlist:
