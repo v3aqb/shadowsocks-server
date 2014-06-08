@@ -44,6 +44,18 @@ def get_table(key):
     return table
 
 
+def check(key, method):
+    if method.lower() == 'table':
+        encrypt_table = ''.join(get_table(key))
+        string.maketrans(encrypt_table, string.maketrans('', ''))
+    else:
+        try:
+            Encryptor(key, method)  # test if the settings if OK
+        except Exception as e:
+            logging.error(e)
+            sys.exit(1)
+
+
 @lru_cache(128)
 def init_table(key):
     encrypt_table = ''.join(get_table(key))

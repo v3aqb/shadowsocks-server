@@ -1,4 +1,4 @@
 shadowsocks-server
 ==================
 
-a python shadowsocks server
+a super simple shadowsocks server in python
