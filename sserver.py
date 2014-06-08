@@ -28,8 +28,6 @@ if sys.version_info < (2, 6):
 else:
     import json
 
-
-# TODO remove gevent
 try:
     import gevent
     import gevent.monkey
@@ -49,7 +47,6 @@ import getopt
 import encrypt
 import os
 import utils
-import udprelay
 
 
 def send_all(sock, data):
@@ -67,11 +64,6 @@ class ThreadingTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     allow_reuse_address = True
 
     def server_activate(self):
-        if config_fast_open:
-            try:
-                self.socket.setsockopt(socket.SOL_TCP, 23, 5)
-            except socket.error:
-                logging.error('warning: fast open is not available')
         self.socket.listen(self.request_queue_size)
 
     def get_request(self):
@@ -169,8 +161,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
 
 
 def main():
-    global config_server, config_server_port, config_method, config_fast_open, \
-        config_timeout
+    global config_server, config_server_port, config_method, config_fast_open, config_timeout
 
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s %(levelname)-8s %(message)s',
@@ -232,7 +223,6 @@ def main():
     config_method = config.get('method', None)
     config_port_password = config.get('port_password', None)
     config_timeout = int(config.get('timeout', 300))
-    config_fast_open = config.get('fast_open', False)
     config_workers = config.get('workers', 1)
 
     if not config_key and not config_path:
