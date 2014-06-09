@@ -82,35 +82,33 @@ class Socks5Server(SocketServer.StreamRequestHandler):
 
     def handle_tcp(self, sock, remote, timeout=600):
         try:
-            iw = [sock, remote]
-            count = 0
+            fdset = [sock, remote]
             while True:
-                try:
-                    (ins, _, exs) = select.select(iw, [], iw, 1)
-                    if exs:
-                        break
-                    if sock in ins:
-                        data = self.decrypt(sock.recv(4096))
-                        if data:
-                            result = send_all(remote, data)
-                            if result < len(data):
-                                raise Exception('failed to send all data')
-                            count = 0
-                        elif count < timeout:
-                            count = timeout  # make sure all data are read before we close the sockets
-                    if remote in ins:
-                        data = self.encrypt(remote.recv(4096))
-                        if data:
-                            result = send_all(sock, data)
-                            if result < len(data):
-                                raise Exception('failed to send all data')
-                        elif count < timeout:
-                            count = timeout
-                    if count > timeout:
-                        break
-                    count += 1
-                except socket.error as e:
-                    logging.debug('socket error: %s' % e)
+                should_break = False
+                r, w, e = select.select(fdset, [], [], timeout)
+                if not r:
+                    logging.warn('read time out')
+                    break
+                if sock in r:
+                    data = self.decrypt(sock.recv(4096))
+                    if len(data) <= 0:
+                        should_break = True
+                    else:
+                        result = send_all(remote, data)
+                        if result < len(data):
+                            raise Exception('failed to send all data')
+                if remote in r:
+                    data = self.encrypt(remote.recv(4096))
+                    if len(data) <= 0:
+                        should_break = True
+                    else:
+                        result = send_all(sock, data)
+                        if result < len(data):
+                            raise Exception('failed to send all data')
+                if should_break:
+                    # make sure all data are read before we close the sockets
+                    # TODO: we haven't read ALL the data, actually
+                    # http://cs.ecs.baylor.edu/~donahoo/practical/CSockets/TCPRST.pdf
                     break
         finally:
             sock.close()
