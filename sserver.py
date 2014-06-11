@@ -131,10 +131,12 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             if iv_len > 0 and not data:
                 return
             if iv_len:
+                should_break = False
                 try:
                     self.decrypt(data)
                 except ValueError:
-                    logging.warn('iv reused, possible replay attrack')
+                    logging.warn('iv reused, possible replay attrack. closing...')
+                    should_break = True
             data = sock.recv(1)
             if not data:
                 return
@@ -150,6 +152,11 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                 logging.warn('addr_type not supported, maybe wrong password')
                 return
             port = struct.unpack('>H', self.decrypt(self.rfile.read(2)))
+            if self.server.ports and port[0] not in self.server.ports:
+                logging.info('port not allowed')
+                should_break = True
+            if should_break:
+                return
             try:
                 logging.info('server %s:%d request %s:%d from %s:%d' % (self.server.server_address[0], self.server.server_address[1],
                              addr, port[0], self.client_address[0], self.client_address[1]))
@@ -220,6 +227,7 @@ def main():
             ThreadingTCPServer.address_family = addrs[0][0]
             tcp_server = ThreadingTCPServer((sshost, int(ssport)), Socks5Server)
             tcp_server.key, tcp_server.method = sskey, ssmethod
+            tcp_server.ports = [int(k) for k in urlparse.parse_qs(p.query).get('ports', [''])[0].split(',') if k.isdigit()]
             logging.info('starting server: %s' % item)
             tcp_servers.append(tcp_server)
         except Exception as e:
