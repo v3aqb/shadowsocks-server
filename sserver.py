@@ -132,9 +132,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                 return
             if iv_len:
                 should_break = False
-                try:
-                    self.decrypt(data)
-                except ValueError:
+                if self.decrypt(data) == 1:
                     logging.warn('iv reused, possible replay attrack. closing...')
                     should_break = True
             data = sock.recv(1)

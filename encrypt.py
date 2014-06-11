@@ -175,7 +175,7 @@ class Encryptor(object):
                 decipher_iv = buf[:decipher_iv_len]
                 if self.servermode:
                     if decipher_iv in USED_IV[self.key]:
-                        raise ValueError('possible replay attrack')
+                        return 1
                     USED_IV[self.key].append(decipher_iv)
                 self.decipher = self.get_cipher(self.key, self.method, 0, decipher_iv)
                 buf = buf[decipher_iv_len:]
