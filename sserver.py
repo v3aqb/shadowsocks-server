@@ -131,10 +131,9 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             if iv_len > 0 and not data:
                 return
             if iv_len:
-                should_break = False
                 if self.decrypt(data) == 1:
                     logging.warn('iv reused, possible replay attrack. closing...')
-                    should_break = True
+                    return
             data = sock.recv(1)
             if not data:
                 return
@@ -152,8 +151,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             port = struct.unpack('>H', self.decrypt(self.rfile.read(2)))
             if self.server.ports and port[0] not in self.server.ports:
                 logging.info('port not allowed')
-                should_break = True
-            if should_break:
+                return
                 return
             try:
                 logging.info('server %s:%d request %s:%d from %s:%d' % (self.server.server_address[0], self.server.server_address[1],
