@@ -52,6 +52,7 @@ import getopt
 import encrypt
 import os
 import urlparse
+from util import create_connection, getaddrinfo
 
 
 def send_all(sock, data):
@@ -152,11 +153,13 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             if self.server.ports and port[0] not in self.server.ports:
                 logging.info('port not allowed')
                 return
+            if getaddrinfo(addr, port[0])[0][4][0] in ('127.0.0.1', '::1'):
+                logging.info('localhost access denied')
                 return
             try:
                 logging.info('server %s:%d request %s:%d from %s:%d' % (self.server.server_address[0], self.server.server_address[1],
                              addr, port[0], self.client_address[0], self.client_address[1]))
-                self.remote = socket.create_connection((addr, port[0]), timeout=10)
+                self.remote = create_connection((addr, port[0]), timeout=10)
                 # self.remote.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             except socket.error, e:  # Connection refused
                 logging.warn(e)
