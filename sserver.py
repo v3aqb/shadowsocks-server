@@ -145,8 +145,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                 addr = self.decrypt(self.rfile.read(ord(self.decrypt(sock.recv(1)))))
             elif addrtype == 4:
                 addr = socket.inet_ntop(socket.AF_INET6, self.decrypt(self.rfile.read(16)))
-            else:
-                # not supported
+            else:  # not supported
                 logging.warn('addr_type not supported, maybe wrong password')
                 return
             port = struct.unpack('>H', self.decrypt(self.rfile.read(2)))
@@ -162,7 +161,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                 self.remote = create_connection((addr, port[0]), timeout=10)
                 # self.remote.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             except socket.error, e:  # Connection refused
-                logging.warn(e)
+                logging.warn('%s on connecting %s:%d' % (e, addr, port[0]))
                 return
             self.handle_tcp(sock, self.remote)
         except socket.error, e:
