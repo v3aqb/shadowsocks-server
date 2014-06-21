@@ -128,21 +128,21 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             sock = self.connection
             # sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             iv_len = self.encryptor.iv_len()
-            data = sock.recv(iv_len)
+            data = self.rfile.read(iv_len)
             if iv_len > 0 and not data:
                 return
             if iv_len:
                 if self.decrypt(data) == 1:
                     logging.warn('iv reused, possible replay attrack. closing...')
                     return
-            data = sock.recv(1)
+            data = self.rfile.read(1)
             if not data:
                 return
             addrtype = ord(self.decrypt(data))
             if addrtype == 1:
                 addr = socket.inet_ntoa(self.decrypt(self.rfile.read(4)))
             elif addrtype == 3:
-                addr = self.decrypt(self.rfile.read(ord(self.decrypt(sock.recv(1)))))
+                addr = self.decrypt(self.rfile.read(ord(self.decrypt(self.rfile.read(1)))))
             elif addrtype == 4:
                 addr = socket.inet_ntop(socket.AF_INET6, self.decrypt(self.rfile.read(16)))
             else:  # not supported
