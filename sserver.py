@@ -66,8 +66,21 @@ def send_all(sock, data):
             return bytes_sent
 
 
-class ThreadingTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+class ShadowsocksServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     allow_reuse_address = True
+
+    def __init__(self, serverinfo, RequestHandlerClass, bind_and_activate=True):
+        p = urlparse.urlparse(serverinfo)
+        encrypt.check(p.password, p.username)
+        self.key, self.method = p.password, p.username
+        self.aports = [int(k) for k in urlparse.parse_qs(p.query).get('ports', [''])[0].split(',') if k.isdigit()]
+
+        addrs = socket.getaddrinfo(p.hostname, p.port)
+        if not addrs:
+            raise ValueError('cant resolve listen address')
+        self.address_family = addrs[0][0]
+        server_address = (p.hostname, p.port)
+        SocketServer.TCPServer.__init__(self, server_address, RequestHandlerClass, bind_and_activate=bind_and_activate)
 
     def server_activate(self):
         self.socket.listen(self.request_queue_size)
@@ -150,7 +163,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                 logging.warn('addr_type not supported, maybe wrong password')
                 return
             port = struct.unpack('>H', self.decrypt(self.rfile.read(2)))
-            if self.server.ports and port[0] not in self.server.ports:
+            if self.server.aports and port[0] not in self.server.aports:
                 logging.info('port not allowed')
                 return
             if getaddrinfo(addr, port[0])[0][4][0] in ('127.0.0.1', '::1'):
@@ -214,26 +227,13 @@ def main():
     except getopt.GetoptError:
         sys.exit(2)
 
-    tcp_servers = []
-    for item in config:
-        p = urlparse.urlparse(item)
-        sshost, ssport, ssmethod, sskey = (p.hostname, p.port, p.username, p.password)
+    for serverinfo in config:
         try:
-            encrypt.check(sskey, ssmethod)
-            addrs = socket.getaddrinfo(sshost, 8388)
-            if not addrs:
-                logging.error('cant resolve listen address')
-            ThreadingTCPServer.address_family = addrs[0][0]
-            tcp_server = ThreadingTCPServer((sshost, int(ssport)), Socks5Server)
-            tcp_server.key, tcp_server.method = sskey, ssmethod
-            tcp_server.ports = [int(k) for k in urlparse.parse_qs(p.query).get('ports', [''])[0].split(',') if k.isdigit()]
-            logging.info('starting server: %s' % item)
-            tcp_servers.append(tcp_server)
+            logging.info('starting server: %s' % serverinfo)
+            ssserver = ShadowsocksServer(serverinfo, Socks5Server)
+            threading.Thread(target=ssserver.serve_forever).start()
         except Exception as e:
             logging.error('something wrong with config: %r' % e)
-
-    for tcp_server in tcp_servers:
-        threading.Thread(target=tcp_server.serve_forever).start()
 
 if __name__ == '__main__':
     try:
