@@ -134,8 +134,9 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             if iv_len:
                 if self.decrypt(data) == 1:
                     logging.warn('iv reused, possible replay attrack. closing...')
+                    sock.recv(4096)
                     return
-            data = self.rfile.read(1)
+            data = sock.recv(1)
             if not data:
                 return
             addrtype = ord(self.decrypt(data))
