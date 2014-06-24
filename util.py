@@ -73,7 +73,7 @@ def create_connection(address, timeout=object(), source_address=None):
 
 
 def parse_hostport(host, default_port=80):
-    m = re.match(r'(.+)[#](\d+)$', host)
+    m = re.match(r'(.+):(\d+)$', host)
     if m:
         return m.group(1).strip('[]'), int(m.group(2))
     else:

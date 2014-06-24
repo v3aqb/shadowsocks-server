@@ -52,7 +52,7 @@ import getopt
 import encrypt
 import os
 import urlparse
-from util import create_connection, getaddrinfo
+from util import create_connection, getaddrinfo, parse_hostport
 
 
 def send_all(sock, data):
@@ -74,6 +74,8 @@ class ShadowsocksServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
         encrypt.check(p.password, p.username)
         self.key, self.method = p.password, p.username
         self.aports = [int(k) for k in urlparse.parse_qs(p.query).get('ports', [''])[0].split(',') if k.isdigit()]
+        reverse = urlparse.parse_qs(p.query).get('reverse', [''])[0]
+        self.reverse = parse_hostport(reverse) if reverse else None
 
         addrs = socket.getaddrinfo(p.hostname, p.port)
         if not addrs:
@@ -172,6 +174,8 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             try:
                 logging.info('server %s:%d request %s:%d from %s:%d' % (self.server.server_address[0], self.server.server_address[1],
                              addr, port[0], self.client_address[0], self.client_address[1]))
+                if self.server.reverse and port[0] == 80:
+                    addr, port[0] = self.server.reverse
                 self.remote = create_connection((addr, port[0]), timeout=10)
                 # self.remote.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             except socket.error, e:  # Connection refused
