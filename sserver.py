@@ -95,6 +95,7 @@ class ShadowsocksServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
 class Socks5Server(SocketServer.StreamRequestHandler):
     timeout = 10
+    bufsize = 8192
 
     def handle_tcp(self, sock, remote, timeout=600):
         try:
@@ -106,7 +107,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                     logging.warn('read time out')
                     break
                 if sock in r:
-                    data = self.decrypt(sock.recv(4096))
+                    data = self.decrypt(sock.recv(self.bufsize))
                     if len(data) <= 0:
                         should_break = True
                     else:
@@ -114,7 +115,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                         if result < len(data):
                             raise Exception('failed to send all data')
                 if remote in r:
-                    data = self.encrypt(remote.recv(4096))
+                    data = self.encrypt(remote.recv(self.bufsize))
                     if len(data) <= 0:
                         should_break = True
                     else:
@@ -149,7 +150,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             if iv_len:
                 if self.decrypt(data) == 1:
                     logging.warn('iv reused, possible replay attrack. closing...')
-                    sock.recv(4096)
+                    sock.recv(self.bufsize)
                     return
             data = sock.recv(1)
             if not data:
