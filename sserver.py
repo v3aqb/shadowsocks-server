@@ -192,6 +192,16 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             self.remote.close()
 
 
+def start_servers(config):
+    for serverinfo in config:
+        try:
+            logging.info('starting server: %s' % serverinfo)
+            ssserver = ShadowsocksServer(serverinfo, Socks5Server)
+            threading.Thread(target=ssserver.serve_forever).start()
+        except Exception as e:
+            logging.error('something wrong with config: %r' % e)
+
+
 def main():
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s %(levelname)-8s %(message)s',
@@ -232,13 +242,7 @@ def main():
     except getopt.GetoptError:
         sys.exit(2)
 
-    for serverinfo in config:
-        try:
-            logging.info('starting server: %s' % serverinfo)
-            ssserver = ShadowsocksServer(serverinfo, Socks5Server)
-            threading.Thread(target=ssserver.serve_forever).start()
-        except Exception as e:
-            logging.error('something wrong with config: %r' % e)
+    start_servers(config)
 
 if __name__ == '__main__':
     try:
