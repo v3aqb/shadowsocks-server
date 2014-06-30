@@ -70,6 +70,7 @@ class ShadowsocksServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     allow_reuse_address = True
 
     def __init__(self, serverinfo, RequestHandlerClass, bind_and_activate=True):
+        self.serverinfo = serverinfo
         p = urlparse.urlparse(serverinfo)
         encrypt.check(p.password, p.username)
         self.key, self.method = p.password, p.username
@@ -144,13 +145,11 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             sock = self.connection
             # sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             iv_len = self.encryptor.iv_len()
-            data = self.rfile.read(iv_len)
-            if iv_len > 0 and not data:
-                return
             if iv_len:
-                if self.decrypt(data) == 1:
+                try:
+                    self.decrypt(self.rfile.read(iv_len))
+                except ValueError:
                     logging.warn('iv reused, possible replay attrack. closing...')
-                    sock.recv(self.bufsize)
                     return
             data = sock.recv(1)
             if not data:
