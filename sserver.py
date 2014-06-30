@@ -164,22 +164,27 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             else:  # not supported
                 logging.warn('addr_type not supported, maybe wrong password')
                 return
-            port = struct.unpack('>H', self.decrypt(self.rfile.read(2)))
-            if self.server.aports and port[0] not in self.server.aports:
-                logging.info('port not allowed')
+            port = struct.unpack('>H', self.decrypt(self.rfile.read(2)))[0]
+            if self.server.aports and port not in self.server.aports:
+                logging.info('port %d not allowed' % port)
                 return
-            if getaddrinfo(addr, port[0])[0][4][0] in ('127.0.0.1', '::1'):
+            if getaddrinfo(addr, port)[0][4][0] in ('127.0.0.1', '::1'):
                 logging.info('localhost access denied')
                 return
+
             try:
                 logging.info('server %s:%d request %s:%d from %s:%d' % (self.server.server_address[0], self.server.server_address[1],
-                             addr, port[0], self.client_address[0], self.client_address[1]))
-                if self.server.reverse and port[0] == 80:
-                    addr, port[0] = self.server.reverse
-                self.remote = create_connection((addr, port[0]), timeout=10)
+                             addr, port, self.client_address[0], self.client_address[1]))
+                data = self.decrypt(sock.recv(self.bufsize))
+                if self.server.reverse and data.startswith((b'GET', b'POST')) and b'HTTP/1' in data:
+                    if '\r\n' in data:
+                        data = data.replace('\r\n', '\r\nss-realip: %s\r\n' % self.client_address[0], 1)
+                        addr, port = self.server.reverse
+                self.remote = create_connection((addr, port), timeout=10)
+                self.remote.sendall(data)
                 # self.remote.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             except socket.error, e:  # Connection refused
-                logging.warn('%s on connecting %s:%d' % (e, addr, port[0]))
+                logging.warn('%s on connecting %s:%d' % (e, addr, port))
                 return
             self.handle_tcp(sock, self.remote)
         except socket.error, e:
