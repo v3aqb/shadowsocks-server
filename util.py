@@ -52,6 +52,8 @@ def create_connection(address, timeout=object(), source_address=None):
     for res in getaddrinfo(host, port):
         af, socktype, proto, canonname, sa = res
         sock = None
+        if af == 10:
+            continue
         try:
             sock = socket.socket(af, socktype, proto)
             if timeout is not object():
