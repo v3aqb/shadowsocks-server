@@ -178,7 +178,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                 data = self.decrypt(sock.recv(self.bufsize))
                 if self.server.reverse and data.startswith((b'GET', b'POST')) and b'HTTP/1' in data:
                     if '\r\n' in data:
-                        data = data.replace('\r\n', '\r\nss-realip: %s\r\n' % self.client_address[0], 1)
+                        data = data.replace('\r\n', '\r\nss-realip: %s\r\nss-client: %s\r\n' % (self.client_address[0], self.server.key), 1)
                         addr, port = self.server.reverse
                 self.remote = create_connection((addr, port), timeout=10)
                 self.remote.sendall(data)
