@@ -105,7 +105,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                 should_break = False
                 r, w, e = select.select(fdset, [], [], timeout)
                 if not r:
-                    logging.warn('read time out')
+                    logging.warn('server %s:%d read time out' % self.server.server_address)
                     break
                 if sock in r:
                     data = self.decrypt(sock.recv(self.bufsize))
@@ -149,7 +149,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                 try:
                     self.decrypt(self.rfile.read(iv_len))
                 except ValueError:
-                    logging.warn('iv reused, possible replay attrack. closing...')
+                    logging.warn('server %s:%d iv reused, possible replay attrack. closing...' % self.server.server_address)
                     return
             data = sock.recv(1)
             if not data:
@@ -162,14 +162,14 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             elif addrtype == 4:
                 addr = socket.inet_ntop(socket.AF_INET6, self.decrypt(self.rfile.read(16)))
             else:  # not supported
-                logging.warn('addr_type not supported, maybe wrong password')
+                logging.warn('server %s:%d addr_type not supported, maybe wrong password' % self.server.server_address)
                 return
             port = struct.unpack('>H', self.decrypt(self.rfile.read(2)))[0]
             if self.server.aports and port not in self.server.aports:
-                logging.info('port %d not allowed' % port)
+                logging.info('server %s:%d port %d not allowed' % (self.server.server_address[0], self.server.server_address[1], port))
                 return
             if getaddrinfo(addr, port)[0][4][0] in ('127.0.0.1', '::1'):
-                logging.info('localhost access denied')
+                logging.info('server %s:%d localhost access denied' % self.server.server_address)
                 return
 
             try:
@@ -183,12 +183,12 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                 self.remote = create_connection((addr, port), timeout=10)
                 self.remote.sendall(data)
                 # self.remote.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            except socket.error, e:  # Connection refused
-                logging.warn('%s on connecting %s:%d' % (e, addr, port))
+            except socket.error as e:  # Connection refused
+                logging.warn('server %s:%d %r on connecting %s:%d' % (self.server.server_address[0], self.server.server_address[1], e, addr, port))
                 return
             self.handle_tcp(sock, self.remote)
         except socket.error, e:
-            logging.warn(e)
+            logging.warn('server %s:%d %r' % (self.server.server_address[0], self.server.server_address[1], e))
 
     def finish(self):
         SocketServer.StreamRequestHandler.finish(self)
