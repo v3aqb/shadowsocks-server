@@ -21,16 +21,24 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from collections import defaultdict, deque
+import os
 import sys
 import hashlib
 import string
 import struct
 import logging
+from collections import defaultdict, deque
 from repoze.lru import lru_cache
-from M2Crypto.EVP import Cipher
-import M2Crypto.Rand
-random_string = M2Crypto.Rand.rand_bytes
+try:
+    from M2Crypto.EVP import Cipher
+    import M2Crypto.Rand
+    random_string = M2Crypto.Rand.rand_bytes
+except ImportError:
+    random_string = os.urandom
+    try:
+        from streamcipher import StreamCipher as Cipher
+    except ImportError:
+        Cipher = None
 
 
 def get_table(key):
@@ -69,7 +77,7 @@ def EVP_BytesToKey(password, key_len, iv_len):
     # so that we make the same key and iv as nodejs version
     m = []
     i = 0
-    while len(''.join(m)) < key_len:
+    while len(b''.join(m)) < (key_len + iv_len):
         md5 = hashlib.md5()
         data = password
         if i > 0:
@@ -77,9 +85,10 @@ def EVP_BytesToKey(password, key_len, iv_len):
         md5.update(data)
         m.append(md5.digest())
         i += 1
-    ms = ''.join(m)
+    ms = b''.join(m)
     key = ms[:key_len]
-    return key
+    iv = ms[key_len:key_len + iv_len]
+    return (key, iv)
 
 
 class sized_deque(deque):
@@ -99,10 +108,19 @@ method_supported = {
     'idea-cfb': (16, 8),
     'rc2-cfb': (16, 8),
     'rc4': (16, 0),
+    'rc4-md5': (16, 16),
     'seed-cfb': (16, 16),
 }
 
 USED_IV = defaultdict(sized_deque)
+
+
+def create_rc4_md5(method, key, iv, op):
+    md5 = hashlib.md5()
+    md5.update(key)
+    md5.update(iv)
+    rc4_key = md5.digest()
+    return Cipher('rc4', rc4_key, '', op)
 
 
 class Encryptor(object):
@@ -144,10 +162,14 @@ class Encryptor(object):
         method = method.lower()
         m = self.get_cipher_len(method)
         if m:
-            key = EVP_BytesToKey(password, m[0], m[1])
+            key, _ = EVP_BytesToKey(password, m[0], 0)
+            iv = iv[:m[1]]
             if op == 1:
-                self.cipher_iv = iv[:m[1]]  # this iv is for cipher, not decipher
-            return Cipher(method.replace('-', '_'), key, iv, op, key_as_bytes=0, d='md5', salt=None, i=1, padding=1)
+                self.cipher_iv = iv  # this iv is for cipher, not decipher
+            if method == 'rc4-md5':
+                return create_rc4_md5(method, key, iv, op)
+            else:
+                return Cipher(method.replace('-', '_'), key, iv, op)
 
         logging.error('method %s not supported' % method)
         sys.exit(1)
