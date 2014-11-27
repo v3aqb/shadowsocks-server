@@ -176,14 +176,27 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                 logging.info('server %s:%d request %s:%d from %s:%d' % (self.server.server_address[0], self.server.server_address[1],
                              addr, port, self.client_address[0], self.client_address[1]))
                 data = self.decrypt(sock.recv(self.bufsize))
-                if self.server.reverse and data.startswith((b'GET', b'POST')) and b'HTTP/1' in data:
-                    if '\r\n' in data:
-                        data = data.replace('\r\n', '\r\nss-realip: %s\r\nss-client: %s\r\n' % (self.client_address[0], self.server.key), 1)
-                        addr, port = self.server.reverse
-                self.remote = create_connection((addr, port), timeout=10)
+
+                if self.server.reverse:
+                    if data.startswith((b'GET', b'POST', b'HEAD', b'PUT', b'DELETE', b'TRACE', b'OPTIONS', b'PATCH', b'CONNECT')) and b'HTTP/1' in data and b'\r\n' in data:
+                        data = data.decode('latin1')
+                        data = data.replace('\r\n', '\r\nss-realip: %s:%s\r\nss-client: %s\r\n' % (self.client_address[0], self.client_address[1], self.server.key), 1)
+                        self.remote = create_connection(self.server.reverse, timeout=10)
+                    else:
+                        a = 'CONNECT %s:%d HTTP/1.0\r\nss-realip: %s:%s\r\nss-client: %s\r\n\r\n' % (addr, port, self.client_address[0], self.client_address[1], self.server.key)
+                        self.remote = create_connection(self.server.reverse, timeout=10)
+                        self.remote.sendall(a.encode('latin1'))
+                        remoterfile = self.remote.makefile('rb', 0)
+                        d = remoterfile.readline()
+                        while not d in (b'\r\n', b'\n', b'\r'):
+                            if not d:
+                                raise IOError(0, 'remote closed')
+                            d = remoterfile.readline()
+                if not self.remote:
+                    self.remote = create_connection((addr, port), timeout=10)
                 self.remote.sendall(data)
                 # self.remote.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            except socket.error as e:  # Connection refused
+            except (IOError, OSError) as e:  # Connection refused
                 logging.warn('server %s:%d %r on connecting %s:%d' % (self.server.server_address[0], self.server.server_address[1], e, addr, port))
                 return
             self.handle_tcp(sock, self.remote)
