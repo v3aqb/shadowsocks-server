@@ -98,7 +98,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
     timeout = 10
     bufsize = 8192
 
-    def handle_tcp(self, sock, remote, timeout=600):
+    def handle_tcp(self, sock, remote, timeout=60):
         try:
             fdset = [sock, remote]
             while True:
