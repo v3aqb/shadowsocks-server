@@ -200,7 +200,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                 logging.warn('server %s:%d %r on connecting %s:%d' % (self.server.server_address[0], self.server.server_address[1], e, addr, port))
                 return
             self.handle_tcp(sock, self.remote)
-        except socket.error, e:
+        except socket.error as e:
             logging.warn('server %s:%d %r' % (self.server.server_address[0], self.server.server_address[1], e))
 
     def finish(self):
@@ -227,8 +227,8 @@ def main():
     hello = 'shadowsocks-server %s' % __version__
     if gevent:
         hello += ' with gevent %s' % gevent.__version__
-    print hello
-    print 'by v3aqb'
+    print(hello)
+    print('by v3aqb')
 
     config_path = None
     server = None
@@ -264,7 +264,7 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except socket.error, e:
+    except socket.error as e:
         logging.error(e)
     except KeyboardInterrupt:
         exit(0)

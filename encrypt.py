@@ -42,7 +42,6 @@ except ImportError:
         Cipher = None
 
 
-@lru_cache(128)
 def get_table(key):
     m = hashlib.md5()
     m.update(key)
@@ -63,7 +62,7 @@ def check(key, method):
             Encryptor(key, method)  # test if the settings if OK
         except Exception as e:
             logging.error(e)
-            sys.exit(1)
+            raise e
 
 
 @lru_cache(128)
@@ -180,8 +179,7 @@ class Encryptor(object):
                 return Salsa20Crypto(method, key, iv, op)
             else:
                 return Cipher(method.replace('-', '_'), key, iv, op)
-
-        logger.error('method %s not supported' % method)
+        raise ValueError('method %s not supported' % method)
 
     def encrypt(self, buf):
         if len(buf) == 0:
