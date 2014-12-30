@@ -41,9 +41,10 @@ except ImportError:
     gevent = None
     print >>sys.stderr, 'warning: gevent not found, using threading instead'
 
-
+import errno
 import socket
 import select
+import thread
 import threading
 import SocketServer
 import struct
@@ -98,39 +99,31 @@ class Socks5Server(SocketServer.StreamRequestHandler):
     timeout = 10
     bufsize = 8192
 
-    def handle_tcp(self, sock, remote, timeout=60):
-        try:
-            fdset = [sock, remote]
-            while True:
-                should_break = False
-                r, w, e = select.select(fdset, [], [], timeout)
-                if not r:
-                    logging.warn('server %s:%d read time out' % self.server.server_address)
-                    break
-                if sock in r:
-                    data = self.decrypt(sock.recv(self.bufsize))
-                    if len(data) <= 0:
-                        should_break = True
-                    else:
-                        result = send_all(remote, data)
-                        if result < len(data):
-                            raise Exception('failed to send all data')
-                if remote in r:
-                    data = self.encrypt(remote.recv(self.bufsize))
-                    if len(data) <= 0:
-                        should_break = True
-                    else:
-                        result = send_all(sock, data)
-                        if result < len(data):
-                            raise Exception('failed to send all data')
-                if should_break:
-                    # make sure all data are read before we close the sockets
-                    # TODO: we haven't read ALL the data, actually
-                    # http://cs.ecs.baylor.edu/~donahoo/practical/CSockets/TCPRST.pdf
-                    break
-        finally:
-            sock.close()
-            remote.close()
+    def handle_tcp(self, local, remote, timeout=60):
+        def _io_copy(dest, source, timeout, cipher):
+            try:
+                dest.settimeout(timeout)
+                source.settimeout(timeout)
+                while 1:
+                    data = source.recv(self.bufsize)
+                    if not data:
+                        break
+                    dest.sendall(cipher(data))
+            except socket.timeout:
+                pass
+            except (IOError, OSError) as e:
+                if e.args[0] not in (errno.ECONNABORTED, errno.ECONNRESET, errno.ENOTCONN, errno.EPIPE):
+                    raise
+                if e.args[0] in (errno.EBADF,):
+                    return
+            finally:
+                for sock in (dest, source):
+                    try:
+                        sock.close()
+                    except StandardError:
+                        pass
+        thread.start_new_thread(_io_copy, (remote.dup(), local.dup(), timeout, self.decrypt))
+        _io_copy(local, remote, timeout, self.encrypt)
 
     def encrypt(self, data):
         return self.encryptor.encrypt(data)
