@@ -29,6 +29,7 @@ import struct
 import logging
 from collections import defaultdict, deque
 from repoze.lru import lru_cache
+from ctypes_libsodium import Salsa20Crypto
 try:
     from M2Crypto.EVP import Cipher
     import M2Crypto.Rand
@@ -41,6 +42,7 @@ except ImportError:
         Cipher = None
 
 
+@lru_cache(128)
 def get_table(key):
     m = hashlib.md5()
     m.update(key)
@@ -99,17 +101,31 @@ method_supported = {
     'aes-128-cfb': (16, 16),
     'aes-192-cfb': (24, 16),
     'aes-256-cfb': (32, 16),
-    'bf-cfb': (16, 8),
+    'aes-128-ofb': (16, 16),
+    'aes-192-ofb': (24, 16),
+    'aes-256-ofb': (32, 16),
+    'aes-128-ctr': (16, 16),
+    'aes-192-ctr': (24, 16),
+    'aes-256-ctr': (32, 16),
     'camellia-128-cfb': (16, 16),
     'camellia-192-cfb': (24, 16),
     'camellia-256-cfb': (32, 16),
+    'camellia-128-ofb': (16, 16),
+    'camellia-192-ofb': (24, 16),
+    'camellia-256-ofb': (32, 16),
+    'camellia-128-ctr': (16, 16),
+    'camellia-192-ctr': (24, 16),
+    'camellia-256-ctr': (32, 16),
     'cast5-cfb': (16, 8),
-    'des-cfb': (8, 8),
-    'idea-cfb': (16, 8),
-    'rc2-cfb': (16, 8),
+    'cast5-ofb': (16, 8),
+    'cast5-ctr': (16, 8),
+    'seed-cfb': (16, 16),
+    'seed-ofb': (16, 16),
+    'seed-ctr': (16, 16),
     'rc4': (16, 0),
     'rc4-md5': (16, 16),
-    'seed-cfb': (16, 16),
+    'salsa20': (32, 8),
+    'chacha20': (32, 8),
 }
 
 USED_IV = defaultdict(sized_deque)
@@ -135,15 +151,7 @@ class Encryptor(object):
         self.cipher_iv = ''
         self.decipher = None
         if method is not None:
-            if servermode:
-                self.cipher = self.get_cipher(key, method, 1, random_string(32))
-            else:
-                while True:
-                    iv = random_string(32)
-                    if iv not in USED_IV[self.key]:
-                        break
-                USED_IV[self.key].append(iv)
-                self.cipher = self.get_cipher(key, method, 1, iv)
+            self.cipher = self.get_cipher(key, method, 1, random_string(32))
         else:
             self.cipher = None
             self.decipher = 0
@@ -168,11 +176,12 @@ class Encryptor(object):
                 self.cipher_iv = iv  # this iv is for cipher, not decipher
             if method == 'rc4-md5':
                 return create_rc4_md5(method, key, iv, op)
+            elif method in ('salsa20', 'chacha20'):
+                return Salsa20Crypto(method, key, iv, op)
             else:
                 return Cipher(method.replace('-', '_'), key, iv, op)
 
-        logging.error('method %s not supported' % method)
-        sys.exit(1)
+        logger.error('method %s not supported' % method)
 
     def encrypt(self, buf):
         if len(buf) == 0:
