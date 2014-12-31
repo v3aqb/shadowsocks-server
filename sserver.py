@@ -43,7 +43,6 @@ except ImportError:
 
 import errno
 import socket
-import select
 import thread
 import threading
 import SocketServer
@@ -120,7 +119,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                 for sock in (dest, source):
                     try:
                         sock.close()
-                    except StandardError:
+                    except (IOError, OSError):
                         pass
         thread.start_new_thread(_io_copy, (remote.dup(), local.dup(), timeout, self.decrypt))
         _io_copy(local, remote, timeout, self.encrypt)
