@@ -22,7 +22,6 @@
 # SOFTWARE.
 
 import os
-import sys
 import hashlib
 import string
 import struct
@@ -48,7 +47,7 @@ def get_table(key):
     s = m.digest()
     (a, b) = struct.unpack('<QQ', s)
     table = [c for c in string.maketrans('', '')]
-    for i in xrange(1, 1024):
+    for i in range(1, 1024):
         table.sort(lambda x, y: int(a % (ord(x) + i) - a % (ord(y) + i)))
     return table
 
@@ -103,24 +102,8 @@ method_supported = {
     'aes-128-ofb': (16, 16),
     'aes-192-ofb': (24, 16),
     'aes-256-ofb': (32, 16),
-    'aes-128-ctr': (16, 16),
-    'aes-192-ctr': (24, 16),
-    'aes-256-ctr': (32, 16),
-    'camellia-128-cfb': (16, 16),
-    'camellia-192-cfb': (24, 16),
-    'camellia-256-cfb': (32, 16),
-    'camellia-128-ofb': (16, 16),
-    'camellia-192-ofb': (24, 16),
-    'camellia-256-ofb': (32, 16),
-    'camellia-128-ctr': (16, 16),
-    'camellia-192-ctr': (24, 16),
-    'camellia-256-ctr': (32, 16),
     'cast5-cfb': (16, 8),
     'cast5-ofb': (16, 8),
-    'cast5-ctr': (16, 8),
-    'seed-cfb': (16, 16),
-    'seed-ofb': (16, 16),
-    'seed-ctr': (16, 16),
     'rc4': (16, 0),
     'rc4-md5': (16, 16),
     'salsa20': (32, 8),

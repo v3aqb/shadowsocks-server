@@ -23,6 +23,10 @@
 import re
 import socket
 from repoze.lru import lru_cache
+try:
+    from ipaddress import ip_address as ip_address
+except ImportError:
+    from ipaddr import IPAddress as ip_address
 
 
 @lru_cache(4096, timeout=90)
@@ -74,6 +78,17 @@ def create_connection(address, timeout=object(), source_address=None):
         raise socket.error("getaddrinfo returns an empty list")
 
 
+@lru_cache(1024, timeout=900)
+def get_ip_address(host):
+    try:
+        return ip_address(host)
+    except:
+        try:
+            return ip_address(getaddrinfo(host)[0][4][1])
+        except:
+            return ip_address('0.0.0.0')
+
+
 def parse_hostport(host, default_port=80):
     m = re.match(r'(.+):(\d+)$', host)
     if m:
@@ -84,6 +99,6 @@ def parse_hostport(host, default_port=80):
 if __name__ == "__main__":
     t = socket.getaddrinfo('www.baidu.com', 80)
     r = getaddrinfo('www.baidu.com')
-    print t
-    print r
-    print r[0][4][0]
+    print(t)
+    print(r)
+    print(r[0][4][0])

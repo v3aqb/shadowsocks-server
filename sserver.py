@@ -52,7 +52,7 @@ import getopt
 import encrypt
 import os
 import urlparse
-from util import create_connection, getaddrinfo, parse_hostport
+from util import create_connection, getaddrinfo, parse_hostport, get_ip_address
 
 
 def send_all(sock, data):
@@ -78,7 +78,7 @@ class ShadowsocksServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
         reverse = urlparse.parse_qs(p.query).get('reverse', [''])[0]
         self.reverse = parse_hostport(reverse) if reverse else None
 
-        addrs = socket.getaddrinfo(p.hostname, p.port)
+        addrs = getaddrinfo(p.hostname, p.port)
         if not addrs:
             raise ValueError('cant resolve listen address')
         self.address_family = addrs[0][0]
@@ -88,14 +88,9 @@ class ShadowsocksServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     def server_activate(self):
         self.socket.listen(self.request_queue_size)
 
-    def get_request(self):
-        connection = self.socket.accept()
-        connection[0].settimeout(10)
-        return connection
-
 
 class Socks5Server(SocketServer.StreamRequestHandler):
-    timeout = 10
+    timeout = 20
     bufsize = 8192
 
     def handle_tcp(self, local, remote, timeout=60):
@@ -130,6 +125,12 @@ class Socks5Server(SocketServer.StreamRequestHandler):
     def decrypt(self, data):
         return self.encryptor.decrypt(data)
 
+    def _request_is_loopback(self, req):
+        try:
+            return get_ip_address(req[0]).is_loopback
+        except Exception:
+            pass
+
     def handle(self):
         self.remote = None
         try:
@@ -160,7 +161,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
             if self.server.aports and port not in self.server.aports:
                 logging.info('server %s:%d port %d not allowed' % (self.server.server_address[0], self.server.server_address[1], port))
                 return
-            if getaddrinfo(addr, port)[0][4][0] in ('127.0.0.1', '::1'):
+            if self._request_is_loopback((addr, port)):
                 logging.info('server %s:%d localhost access denied' % self.server.server_address)
                 return
 
@@ -180,7 +181,7 @@ class Socks5Server(SocketServer.StreamRequestHandler):
                         self.remote.sendall(a.encode('latin1'))
                         remoterfile = self.remote.makefile('rb', 0)
                         d = remoterfile.readline()
-                        while not d in (b'\r\n', b'\n', b'\r'):
+                        while d not in (b'\r\n', b'\n', b'\r'):
                             if not d:
                                 raise IOError(0, 'remote closed')
                             d = remoterfile.readline()
@@ -259,4 +260,4 @@ if __name__ == '__main__':
     except socket.error as e:
         logging.error(e)
     except KeyboardInterrupt:
-        exit(0)
+        sys.exit(0)
