@@ -83,30 +83,27 @@ class Socks5Server(SocketServer.StreamRequestHandler):
     def handle_tcp(self, local, remote, timeout=60):
         try:
             fdset = [local, remote]
-            should_break = False
-            while True:
+            while fdset:
                 r, w, e = select.select(fdset, [], [], timeout)
                 if not r:
-                    logging.warn('read time out')
+                    logging.debug('read time out')
                     break
                 if local in r:
                     data = local.recv(self.bufsize)
                     if not data:
-                        should_break += 1
                         remote.shutdown(socket.SHUT_WR)
                         local.shutdown(socket.SHUT_RD)
+                        fdset.remove(local)
                     else:
                         remote.sendall(self.decrypt(data))
                 if remote in r:
                     data = remote.recv(self.bufsize)
                     if not data:
-                        should_break += 1
                         local.shutdown(socket.SHUT_WR)
                         remote.shutdown(socket.SHUT_RD)
+                        fdset.remove(remote)
                     else:
                         local.sendall(self.encrypt(data))
-                if should_break > 1:
-                    break
         finally:
             local.close()
             remote.close()
