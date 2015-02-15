@@ -40,10 +40,8 @@ try:
 except ImportError:
     gevent = None
     print >>sys.stderr, 'warning: gevent not found, using threading instead'
-
-import errno
+import select
 import socket
-import thread
 import threading
 import SocketServer
 import struct
@@ -53,17 +51,6 @@ import encrypt
 import os
 import urlparse
 from util import create_connection, getaddrinfo, parse_hostport, get_ip_address
-
-
-def send_all(sock, data):
-    bytes_sent = 0
-    while True:
-        r = sock.send(data[bytes_sent:])
-        if r < 0:
-            return r
-        bytes_sent += r
-        if bytes_sent == len(data):
-            return bytes_sent
 
 
 class ShadowsocksServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
@@ -94,30 +81,35 @@ class Socks5Server(SocketServer.StreamRequestHandler):
     bufsize = 8192
 
     def handle_tcp(self, local, remote, timeout=60):
-        def _io_copy(dest, source, timeout, cipher):
-            try:
-                dest.settimeout(timeout)
-                source.settimeout(timeout)
-                while 1:
-                    data = source.recv(self.bufsize)
+        try:
+            fdset = [local, remote]
+            should_break = False
+            while True:
+                r, w, e = select.select(fdset, [], [], timeout)
+                if not r:
+                    logging.warn('read time out')
+                    break
+                if local in r:
+                    data = local.recv(self.bufsize)
                     if not data:
-                        break
-                    dest.sendall(cipher(data))
-            except socket.timeout:
-                pass
-            except (IOError, OSError) as e:
-                if e.args[0] not in (errno.ECONNABORTED, errno.ECONNRESET, errno.ENOTCONN, errno.EPIPE):
-                    raise
-                if e.args[0] in (errno.EBADF,):
-                    return
-            finally:
-                for sock in (dest, source):
-                    try:
-                        sock.close()
-                    except (IOError, OSError):
-                        pass
-        thread.start_new_thread(_io_copy, (remote.dup(), local.dup(), timeout, self.decrypt))
-        _io_copy(local, remote, timeout, self.encrypt)
+                        should_break += 1
+                        remote.shutdown(socket.SHUT_WR)
+                        local.shutdown(socket.SHUT_RD)
+                    else:
+                        remote.sendall(self.decrypt(data))
+                if remote in r:
+                    data = remote.recv(self.bufsize)
+                    if not data:
+                        should_break += 1
+                        local.shutdown(socket.SHUT_WR)
+                        remote.shutdown(socket.SHUT_RD)
+                    else:
+                        local.sendall(self.encrypt(data))
+                if should_break > 1:
+                    break
+        finally:
+            local.close()
+            remote.close()
 
     def encrypt(self, data):
         return self.encryptor.encrypt(data)
